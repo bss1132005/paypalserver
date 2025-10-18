@@ -7,9 +7,9 @@ dotenv.config();
 
 const app = express();
 
-// ✅ ضع cors بعد إنشاء app
+// ✅ اسمح فقط لموقعك بالاتصال بالسيرفر
 app.use(cors({
-  origin: "https://www.plusconvert.sbs", // موقعك على بلوجر
+  origin: "https://www.plusconvert.sbs", // ضع رابط موقعك هنا
   methods: ["GET", "POST"],
   credentials: true
 }));
@@ -33,6 +33,5 @@ app.post("/api/orders", async (req, res) => {
   res.json(data);
 });
 
-app.listen(10000, () => console.log("✅ Server running on port 10000"));
-
-
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
