@@ -1,5 +1,6 @@
 // =================================================================
 // THIS IS THE COMPLETE AND CORRECTED server.js CODE
+// PASTE THIS ENTIRE BLOCK INTO YOUR GITHUB FILE
 // =================================================================
 
 const express = require('express');
@@ -11,15 +12,15 @@ const app = express();
 
 // --- CORS Configuration ---
 // This allows your website to make requests to this server.
-// Replace 'https://YOUR-BLOG-NAME.blogspot.com' with your actual Blogger URL
 const allowedOrigins = [
   'https://plusconvert.sbs', // Your custom domain
-  'https://YOUR-BLOG-NAME.blogspot.com'
+  'https://www.plusconvert.sbs', // Include www just in case
+  'https://plusconvert-sbs.blogspot.com'  // Replace with your actual blogspot URL if different
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or server-to-server requests)
+    // Allow requests with no origin (like server-to-server or REST clients)
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -28,23 +29,24 @@ const corsOptions = {
   }
 };
 
-app.use(cors(corsOptions)); // Use the specific CORS options
-app.use(express.json());    // Use the modern Express body parser
+app.use(cors(corsOptions));
+app.use(express.json());
 
 // Get PayPal credentials from Render's Environment Variables
 const { PAYPAL_CLIENT_ID, PAYPAL_SECRET, NODE_ENV } = process.env;
 
-// Automatically switch between Sandbox and Live PayPal APIs
+// Automatically switch between Sandbox and Live PayPal APIs based on the NODE_ENV variable
 const base = NODE_ENV === 'production' 
   ? 'https://api-m.paypal.com' 
   : 'https://api-m.sandbox.paypal.com';
 
 /**
- * 🔐 Generates an OAuth 2.0 access token for authenticating with PayPal REST APIs.
- * @see https://developer.paypal.com/api/rest/authentication/
+ * Generates an OAuth 2.0 access token for authenticating with PayPal REST APIs.
  */
 async function generateAccessToken() {
-  // Use Buffer to correctly encode credentials
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_SECRET) {
+    throw new Error("MISSING_API_CREDENTIALS");
+  }
   const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64');
   
   try {
@@ -62,8 +64,7 @@ async function generateAccessToken() {
 }
 
 /**
- * 🧾 Creates a new order with PayPal.
- * @see https://developer.paypal.com/docs/api/orders/v2/#orders_create
+ * Creates a new order with PayPal.
  */
 async function createOrder(accessToken, plan) {
   try {
@@ -71,10 +72,10 @@ async function createOrder(accessToken, plan) {
       intent: 'CAPTURE',
       purchase_units: [
         {
-          description: `PlusConvert ${plan.name} Plan`, // Dynamic description from the website
+          description: `PlusConvert ${plan.name} Plan`,
           amount: {
             currency_code: 'USD',
-            value: plan.price // Dynamic price from the website
+            value: plan.price
           }
         }
       ]
@@ -92,8 +93,7 @@ async function createOrder(accessToken, plan) {
 }
 
 /**
- * 💰 Captures the payment for a previously created order.
- * @see https://developer.paypal.com/docs/api/orders/v2/#orders_capture
+ * Captures the payment for a previously created order.
  */
 async function capturePayment(orderId, accessToken) {
   try {
@@ -141,9 +141,9 @@ app.post('/api/orders/:orderId/capture', async (req, res) => {
   }
 });
 
-// A simple health check route
+// A simple health check route to ensure the server is running
 app.get('/', (req, res) => {
-  res.send('PayPal Server is running.');
+  res.send('PayPal Server is alive and running.');
 });
 
 
@@ -151,6 +151,4 @@ app.get('/', (req, res) => {
 const port = process.env.PORT || 10000;
 app.listen(port, () => {
   console.log(`✅ Server is running on port ${port}`);
-});```
-
-After updating this file in your GitHub repository, Render will automatically deploy the changes. Once the deployment is complete, your payment buttons should work correctly.
+});
