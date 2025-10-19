@@ -1,97 +1,91 @@
-import express from "express";
-import fetch from "node-fetch";
-import cors from "cors";
-import dotenv from "dotenv";
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const axios = require('axios');
+require('dotenv').config();
 
-dotenv.config();
 const app = express();
+app.use(cors());
+app.use(bodyParser.json());
 
-// === CORS FIX ===
-const allowedOrigins = [
-  "https://www.plusconvert.sbs",
-  "https://plusconvert.sbs"
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  }
-}));
-
-app.use(express.json());
-
-// === PAYPAL LIVE ORDER CREATION ===
-app.post("/api/orders", async (req, res) => {
+// 🟢 إنشاء طلب جديد (Order)
+app.post('/api/orders', async (req, res) => {
   try {
     const accessToken = await generateAccessToken();
-    const url = "https://api-m.paypal.com/v2/checkout/orders"; // ✅ LIVE endpoint
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        intent: "CAPTURE",
-        purchase_units: [{
-          amount: {
-            currency_code: "USD",
-            value: "5.00"
-          }
-        }]
-      }),
-    });
-
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    console.error("Create order error:", err);
-    res.status(500).send({ error: "Server Error creating PayPal order" });
+    const order = await createOrder(accessToken);
+    res.json(order);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error creating order');
   }
 });
 
-app.post("/api/orders/:orderID/capture", async (req, res) => {
+// 🟢 تأكيد الدفع بعد نجاح العملية
+app.post('/api/orders/:orderId/capture', async (req, res) => {
+  const { orderId } = req.params;
   try {
-    const { orderID } = req.params;
     const accessToken = await generateAccessToken();
-    const url = `https://api-m.paypal.com/v2/checkout/orders/${orderID}/capture`;
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${accessToken}`,
-      },
-    });
-
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    console.error("Capture order error:", err);
-    res.status(500).send({ error: "Server Error capturing PayPal order" });
+    const response = await capturePayment(orderId, accessToken);
+    res.json(response);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error capturing order');
   }
 });
 
+// 🔐 دالة لجلب التوكن من PayPal
 async function generateAccessToken() {
-  const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString("base64");
-  const response = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
-    method: "POST",
+  const response = await axios({
+    url: 'https://api-m.sandbox.paypal.com/v1/oauth2/token',
+    method: 'post',
     headers: {
-      "Authorization": `Basic ${auth}`,
-      "Content-Type": "application/x-www-form-urlencoded",
+      'Content-Type': 'application/x-www-form-urlencoded'
     },
-    body: "grant_type=client_credentials",
+    auth: {
+      username: process.env.PAYPAL_CLIENT_ID,
+      password: process.env.PAYPAL_SECRET
+    },
+    data: 'grant_type=client_credentials'
   });
-
-  const data = await response.json();
-  return data.access_token;
+  return response.data.access_token;
 }
 
-app.listen(process.env.PORT || 10000, () => {
-  console.log("✅ Server running on port 10000 (LIVE)");
-});
+// 🧾 إنشاء طلب جديد
+async function createOrder(accessToken) {
+  const response = await axios({
+    url: 'https://api-m.sandbox.paypal.com/v2/checkout/orders',
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    data: {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          amount: {
+            currency_code: 'USD',
+            value: '10.00'
+          }
+        }
+      ]
+    }
+  });
+  return response.data;
+}
+
+// 💰 تأكيد الدفع
+async function capturePayment(orderId, accessToken) {
+  const response = await axios({
+    url: `https://api-m.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`,
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+  return response.data;
+}
+
+const port = process.env.PORT || 10000;
+app.listen(port, () => console.log(`✅ Server running on port ${port}`));
